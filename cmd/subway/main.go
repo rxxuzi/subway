@@ -16,12 +16,15 @@ import (
 	"github.com/fatih/color"
 )
 
+const TOR_DIR = "tor"
+
 func main() {
 	config := DefaultConfig()
 
 	var genConfig bool
 	var loadConfigPath string
 	var saveConfigPath string
+	var cleanup bool
 
 	flag.BoolVar(&genConfig, "gen", false, "Generate default config file")
 	flag.StringVar(&loadConfigPath, "load", "", "Load config from specified file")
@@ -30,6 +33,7 @@ func main() {
 	flag.IntVar(&config.Port, "port", config.Port, "Port to serve on")
 	flag.StringVar(&config.TorPath, "tor", config.TorPath, "Path to Tor executable")
 	flag.StringVar(&config.PortForwarding, "pf", config.PortForwarding, "Port forwarding (e.g., localhost:8080)")
+	flag.BoolVar(&cleanup, "clean", false, "Clean up tor/ directory and subway.json")
 	flag.Parse()
 
 	red := color.New(color.FgRed).SprintFunc()
@@ -41,6 +45,15 @@ func main() {
 			fmt.Printf("Failed to generate default config: %v\n", err)
 		} else {
 			fmt.Printf("Default config generated: %s\n", DEFAULT_CONFIG_FILE)
+		}
+		return
+	}
+
+	if cleanup {
+		if err := cleanUp(); err != nil {
+			fmt.Println(red(fmt.Sprintf("Cleanup failed: %v", err)))
+		} else {
+			fmt.Println(green("Cleanup successful"))
 		}
 		return
 	}
@@ -91,7 +104,7 @@ func main() {
 		return
 	}
 
-	torDir := filepath.Join(currentDir, "tor")
+	torDir := filepath.Join(currentDir, TOR_DIR)
 	if err := os.MkdirAll(torDir, 0700); err != nil {
 		fmt.Println(red(fmt.Sprintf("Failed to create Tor directory: %v", err)))
 		return
@@ -173,5 +186,19 @@ func checkPortAvailability(address string) error {
 		return fmt.Errorf("the specified port is not available: %v", err)
 	}
 	conn.Close()
+	return nil
+}
+
+func cleanUp() error {
+	if err := os.RemoveAll(TOR_DIR); err != nil {
+		return fmt.Errorf("failed to remove %s/ directory: %w", TOR_DIR, err)
+	}
+
+	if err := os.Remove(DEFAULT_CONFIG_FILE); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove subway.json: %w", err)
+		}
+	}
+
 	return nil
 }
